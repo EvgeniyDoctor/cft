@@ -10,6 +10,8 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 
+import net.grandcentrix.tray.AppPreferences;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -37,9 +39,10 @@ https://www.cbr-xml-daily.ru/daily_json.js
 
 
 public class MainActivity extends AppCompatActivity {
-    ArrayList <String> arrayList;
+    //ArrayList <String> arrayList;
     ListView listView;
     String currencyOutputTemplate = "%s (%s)\nКурс: %s";
+    AppPreferences pref;
 
 
 
@@ -48,14 +51,36 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        arrayList = new ArrayList<>();
+        pref = new AppPreferences(getApplicationContext());
+
         listView = findViewById(R.id.list);
+
+        Helper.d("timestamp!");
+        if (pref.contains(JSON.TIMESTAMP) && !pref.getString(JSON.TIMESTAMP, "").isEmpty()) {
+            Helper.d(pref.getString(JSON.TIMESTAMP, ""));
+        }
+
+        Helper.d("currencies!");
+        if (pref.contains(JSON.CURRENCIES) && !pref.getString(JSON.CURRENCIES, "").isEmpty()) {
+            Helper.d(pref.getString(JSON.CURRENCIES, ""));
+            String currencies = pref.getString(JSON.CURRENCIES, "");
+
+            try {
+                ArrayList<String> arrayList = getCurrenciesFromJson(new JSONObject(currencies));
+                if (!arrayList.isEmpty()) {
+                    setListView(arrayList);
+                }
+            }
+            catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
     }
     //-----------------------------------------------------------------------------------------------
 
 
 
-    //
+    // loading new data
     public void getData(View view) {
         if (!Helper.checkInternetConnection(MainActivity.this)) {
             Toast.makeText(this, "Check your Internet connection", Toast.LENGTH_LONG).show();
@@ -67,8 +92,47 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+    // getting info about all currencies from a JSON object and putting them in an array
+    public ArrayList<String> getCurrenciesFromJson (JSONObject Valute) {
+        ArrayList<String> arrayList = new ArrayList<>();
+        try {
+            //arrayList.clear();
+            Iterator<String> temp = Valute.keys();
+            while (temp.hasNext()) {
+                String key = temp.next();
+                JSONObject object = Valute.getJSONObject(key);
+                arrayList.add(
+                    String.format(
+                        currencyOutputTemplate,
+                        object.getString("Name"),
+                        object.getString("CharCode"), object.getString("Value")
+                    )
+                );
+            }
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        return arrayList;
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // set currencies info to listView
+    public void setListView (ArrayList<String> arrayList){
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_list_item_1, arrayList);
+        listView.setAdapter(adapter);
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    //
     private class GetData extends AsyncTask <String, String, String> { // TODO
         ProgressDialog progressDialog;
+        ArrayList <String> arrayList;
 
 
 
@@ -86,30 +150,17 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected String doInBackground(String... strings) {
-            try {
-                JSON json = new JSON();
+            JSON json = new JSON(getApplicationContext());
 
-                String serverAnswer = json.getData(); // TODO null check
-                JSONObject Valute = json.getCurrencies(serverAnswer);
+            String serverAnswer = json.getData(); // loading new data TODO null check
+            String timestamp = json.getTimestamp(serverAnswer); // parse json to get timestamp
+            JSONObject Valute = json.getCurrencies(serverAnswer); // parse json to get currencies
 
-                //
-                arrayList.clear();
-                Iterator<String> temp = Valute.keys();
-                while (temp.hasNext()) {
-                    String key = temp.next();
-                    JSONObject object = Valute.getJSONObject(key);
-                    arrayList.add(
-                        String.format(
-                            currencyOutputTemplate,
-                            object.getString("Name"),
-                            object.getString("CharCode"), object.getString("Value")
-                        )
-                    );
-                }
-            }
-            catch (JSONException e) {
-                e.printStackTrace();
-            }
+            arrayList = getCurrenciesFromJson(Valute); // array of strings for listView
+
+            // save some info
+            json.saveTimestamp(timestamp);
+            json.saveCurrencies(Valute.toString());
 
             return null;
         }
@@ -125,8 +176,9 @@ public class MainActivity extends AppCompatActivity {
                 progressDialog.dismiss();
             }
 
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_list_item_1, arrayList);
-            listView.setAdapter(adapter);
+            if (!arrayList.isEmpty()) {
+                setListView(arrayList);
+            }
         }
         //-----------------------------------------------------------------------------------------------
     }

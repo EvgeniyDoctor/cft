@@ -1,5 +1,9 @@
 package ru.EvgeniyDoctor.cft;
 
+import android.content.Context;
+
+import net.grandcentrix.tray.AppPreferences;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -13,6 +17,19 @@ import java.net.URL;
 
 
 public class JSON {
+    AppPreferences pref;
+    final static String TIMESTAMP = "timestamp";
+    final static String CURRENCIES = "currencies";
+
+
+
+    JSON (Context context) {
+        pref = new AppPreferences(context);
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
     // load new json data
     public String getData(){
         try {
@@ -30,7 +47,7 @@ public class JSON {
             catch (IOException e) {
                 Helper.d("HTTP answer != OK");
                 //e.printStackTrace();
-                return "";
+                return null;
             }
 
             InputStream inputStream = urlConnection.getInputStream();
@@ -48,14 +65,14 @@ public class JSON {
             e.printStackTrace();
         }
 
-        return "";
+        return null;
     }
     //-----------------------------------------------------------------------------------------------
 
 
 
     // get currencies from the json object
-    public JSONObject getCurrencies(String serverAnswer){
+    public JSONObject getCurrencies (String serverAnswer){
         try {
             JSONObject dataJsonObj = new JSONObject(serverAnswer);
             JSONObject Valute = dataJsonObj.getJSONObject("Valute");
@@ -68,4 +85,72 @@ public class JSON {
         return null;
     }
     //-----------------------------------------------------------------------------------------------
+
+
+
+    //
+    public String getTimestamp (String serverAnswer){
+        try {
+            JSONObject dataJsonObj = new JSONObject(serverAnswer);
+            return dataJsonObj.getString("Timestamp");
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    //
+    public void saveTimestamp (String value){
+        pref.put(TIMESTAMP, value);
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    //
+    public void saveCurrencies (String value){
+        pref.put(CURRENCIES, value);
+    }
+    //-----------------------------------------------------------------------------------------------
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

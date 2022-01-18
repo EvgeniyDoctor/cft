@@ -14,13 +14,18 @@ public class Helper {
 
 
     // checking if the network is available
-    public static boolean checkInternetConnection(Context context, boolean need_type) {
+    public static boolean checkInternetConnection(Context context) {
         ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo netInfo = cm.getActiveNetworkInfo();
+
+        return (netInfo == null) ? false : true;
+
+        /*
         if (netInfo == null) {
             return false;
         }
         return netInfo.isConnectedOrConnecting();
+         */
     }
     //----------------------------------------------------------------------------------------------
 

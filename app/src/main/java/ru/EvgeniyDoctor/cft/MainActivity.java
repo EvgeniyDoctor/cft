@@ -7,21 +7,12 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.ListView;
+import android.widget.Toast;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -64,8 +55,13 @@ public class MainActivity extends AppCompatActivity {
 
 
 
+    //
     public void getData(View view) {
-        new GetData().execute("https://www.cbr-xml-daily.ru/daily_json.js");
+        if (!Helper.checkInternetConnection(MainActivity.this)) {
+            Toast.makeText(this, "Check your Internet connection", Toast.LENGTH_LONG).show();
+            return;
+        }
+        new GetData().execute();
     }
     //-----------------------------------------------------------------------------------------------
 
@@ -80,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
             super.onPreExecute();
 
             progressDialog = new ProgressDialog(MainActivity.this);
-            progressDialog.setMessage("asd");
+            progressDialog.setMessage("Wait…");
             progressDialog.setCancelable(false);
             progressDialog.show();
         }
@@ -91,49 +87,27 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected String doInBackground(String... strings) {
             try {
-                URL url = new URL("https://www.cbr-xml-daily.ru/daily_json.js");
+                JSON json = new JSON();
 
-                HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+                String serverAnswer = json.getData(); // TODO null check
+                JSONObject Valute = json.getCurrencies(serverAnswer);
 
-                // connect to the server
-                try {
-                    if (urlConnection.getResponseCode() == 200) { // restful code 200 (OK)
-                        Helper.d("Connect OK");
-                        urlConnection.connect();
-                    }
-                }
-                catch (IOException e) {
-                    Helper.d("HTTP answer != OK");
-                    //e.printStackTrace();
-                    //return Codes.NOT_CONNECTED; // TODO
-                }
-
-                InputStream inputStream = urlConnection.getInputStream();
-                StringBuilder buffer = new StringBuilder();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-
-                String serverAnswer = buffer.toString();
-                JSONObject dataJsonObj = new JSONObject(serverAnswer);
-                JSONObject Valute = dataJsonObj.getJSONObject("Valute");
-
-                Iterator<String> temp = Valute.keys();
+                //
                 arrayList.clear();
+                Iterator<String> temp = Valute.keys();
                 while (temp.hasNext()) {
                     String key = temp.next();
-                    //Object object = Valute.get(key);
-
                     JSONObject object = Valute.getJSONObject(key);
-                    Helper.d(object);
-                    Helper.d(object.getString("Name"));
-                    arrayList.add(String.format(currencyOutputTemplate, object.getString("Name"), object.getString("CharCode"), object.getString("Value")));
+                    arrayList.add(
+                        String.format(
+                            currencyOutputTemplate,
+                            object.getString("Name"),
+                            object.getString("CharCode"), object.getString("Value")
+                        )
+                    );
                 }
             }
-            catch (IOException | JSONException e) {
+            catch (JSONException e) {
                 e.printStackTrace();
             }
 

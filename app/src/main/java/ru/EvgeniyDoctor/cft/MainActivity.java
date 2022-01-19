@@ -1,6 +1,9 @@
 package ru.EvgeniyDoctor.cft;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
@@ -22,6 +25,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 
 
@@ -114,7 +118,27 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Check your Internet connection", Toast.LENGTH_LONG).show();
             return;
         }
+
         new GetData().execute();
+        startBackgroundUpdate();
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // start work manager
+    private void startBackgroundUpdate(){
+        PeriodicWorkRequest myWorkRequest =
+            new PeriodicWorkRequest.Builder(BackgroundUpdate.class, 1, TimeUnit.HOURS)
+                .setInitialDelay(10, TimeUnit.MINUTES)
+                .addTag("workerTag")
+                .build();
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "workerTagOneAtATime",
+            ExistingPeriodicWorkPolicy.KEEP,
+            myWorkRequest
+        );
+        //WorkManager.getInstance(getApplicationContext()).enqueue(myWorkRequest);
     }
     //-----------------------------------------------------------------------------------------------
 

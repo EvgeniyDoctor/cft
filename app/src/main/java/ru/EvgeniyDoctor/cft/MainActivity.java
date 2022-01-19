@@ -2,12 +2,14 @@ package ru.EvgeniyDoctor.cft;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import net.grandcentrix.tray.AppPreferences;
@@ -15,8 +17,12 @@ import net.grandcentrix.tray.AppPreferences;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
+
 
 
 /*
@@ -38,10 +44,13 @@ https://www.cbr-xml-daily.ru/daily_json.js
 */
 
 
+
 public class MainActivity extends AppCompatActivity {
-    //ArrayList <String> arrayList;
     ListView listView;
-    String currencyOutputTemplate = "%s (%s)\nКурс: %s";
+    TextView timestampView;
+
+    String currencyOutputTemplate = "%s (%s)\nКурс: %s"; // template for listView
+    String dateTimeOutputTemplate = "Актуальность данных: %s (МСК)"; //
     AppPreferences pref;
 
 
@@ -54,17 +63,17 @@ public class MainActivity extends AppCompatActivity {
         pref = new AppPreferences(getApplicationContext());
 
         listView = findViewById(R.id.list);
+        timestampView = findViewById(R.id.timestampView);
 
-        Helper.d("timestamp!");
-        if (pref.contains(JSON.TIMESTAMP) && !pref.getString(JSON.TIMESTAMP, "").isEmpty()) {
-            Helper.d(pref.getString(JSON.TIMESTAMP, ""));
+        //
+        if (pref.contains(JSON.TIMESTAMP)) {
+            String timestamp = pref.getString(JSON.TIMESTAMP, "");
+            setTimestampView(timestamp);
         }
 
-        Helper.d("currencies!");
-        if (pref.contains(JSON.CURRENCIES) && !pref.getString(JSON.CURRENCIES, "").isEmpty()) {
-            Helper.d(pref.getString(JSON.CURRENCIES, ""));
+        //
+        if (pref.contains(JSON.CURRENCIES)) {
             String currencies = pref.getString(JSON.CURRENCIES, "");
-
             try {
                 ArrayList<String> arrayList = getCurrenciesFromJson(new JSONObject(currencies));
                 if (!arrayList.isEmpty()) {
@@ -75,6 +84,25 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    //
+    @SuppressLint("SimpleDateFormat")
+    public String formatTimestamp (String timestamp) {
+        try {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
+            Date newDate = dateFormat.parse(timestamp);
+            dateFormat = new SimpleDateFormat("dd.MM.yyyy, HH:mm");
+            return dateFormat.format(newDate);
+        }
+        catch (ParseException e) {
+            e.printStackTrace();
+        }
+
+        return null;
     }
     //-----------------------------------------------------------------------------------------------
 
@@ -130,14 +158,32 @@ public class MainActivity extends AppCompatActivity {
 
 
     //
+    public void setTimestampView (String timestamp){
+        String formattedTimestamp = formatTimestamp(timestamp);
+        if (formattedTimestamp != null) {
+            timestampView.setText(String.format(dateTimeOutputTemplate, formattedTimestamp));
+        }
+        else {
+            timestampView.setText("Error!");
+        }
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // CLASS
     private class GetData extends AsyncTask <String, String, String> { // TODO
-        ProgressDialog progressDialog;
-        ArrayList <String> arrayList;
+        private ProgressDialog progressDialog;
+        private ArrayList <String> arrayList;
+        String timestamp;
+        private boolean hasError;
 
 
 
         protected void onPreExecute() {
             super.onPreExecute();
+
+            hasError = false;
 
             progressDialog = new ProgressDialog(MainActivity.this);
             progressDialog.setMessage("Wait…");
@@ -152,8 +198,14 @@ public class MainActivity extends AppCompatActivity {
         protected String doInBackground(String... strings) {
             JSON json = new JSON(getApplicationContext());
 
-            String serverAnswer = json.getData(); // loading new data TODO null check
-            String timestamp = json.getTimestamp(serverAnswer); // parse json to get timestamp
+            String serverAnswer = json.getData(); // loading new data
+
+            if (serverAnswer == null) { // error or nothing
+                hasError = true;
+                return null;
+            }
+
+            timestamp = json.getTimestamp(serverAnswer); // parse json to get timestamp
             JSONObject Valute = json.getCurrencies(serverAnswer); // parse json to get currencies
 
             arrayList = getCurrenciesFromJson(Valute); // array of strings for listView
@@ -176,8 +228,19 @@ public class MainActivity extends AppCompatActivity {
                 progressDialog.dismiss();
             }
 
-            if (!arrayList.isEmpty()) {
+            if (hasError) {
+                Toast.makeText(MainActivity.this, "An error has occured!", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            // currencies
+            if (arrayList.size() > 0) {
                 setListView(arrayList);
+            }
+
+            // timestamp
+            if (!timestamp.isEmpty()) {
+                setTimestampView(timestamp);
             }
         }
         //-----------------------------------------------------------------------------------------------

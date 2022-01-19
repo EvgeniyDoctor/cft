@@ -88,7 +88,7 @@ public class JSON {
 
 
 
-    //
+    // parse timestamp from the json
     public String getTimestamp (String serverAnswer){
         try {
             JSONObject dataJsonObj = new JSONObject(serverAnswer);
@@ -104,7 +104,7 @@ public class JSON {
 
 
 
-    //
+    // save timestamp to AppPref
     public void saveTimestamp (String value){
         pref.put(TIMESTAMP, value);
     }
@@ -112,7 +112,7 @@ public class JSON {
 
 
 
-    //
+    // save currencies to AppPref
     public void saveCurrencies (String value){
         pref.put(CURRENCIES, value);
     }

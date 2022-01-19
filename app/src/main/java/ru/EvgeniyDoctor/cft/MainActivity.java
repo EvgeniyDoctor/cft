@@ -7,6 +7,7 @@ import androidx.work.WorkManager;
 
 import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
+import android.content.pm.ActivityInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
@@ -69,13 +70,13 @@ public class MainActivity extends AppCompatActivity {
         listView = findViewById(R.id.list);
         timestampView = findViewById(R.id.timestampView);
 
-        //
+        // timestamp loading
         if (pref.contains(JSON.TIMESTAMP)) {
             String timestamp = pref.getString(JSON.TIMESTAMP, "");
             setTimestampView(timestamp);
         }
 
-        //
+        // currencies loading
         if (pref.contains(JSON.CURRENCIES)) {
             String currencies = pref.getString(JSON.CURRENCIES, "");
             try {
@@ -93,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-    //
+    // parse timestamp from the json
     @SuppressLint("SimpleDateFormat")
     public String formatTimestamp (String timestamp) {
         try {
@@ -115,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
     // loading new data
     public void getData(View view) {
         if (!Helper.checkInternetConnection(MainActivity.this)) {
-            Toast.makeText(this, "Check your Internet connection", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Проверьте Интернет-соединение", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -148,7 +149,6 @@ public class MainActivity extends AppCompatActivity {
     public ArrayList<String> getCurrenciesFromJson (JSONObject Valute) {
         ArrayList<String> arrayList = new ArrayList<>();
         try {
-            //arrayList.clear();
             Iterator<String> temp = Valute.keys();
             while (temp.hasNext()) {
                 String key = temp.next();
@@ -181,14 +181,14 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-    //
+    // set formatted timestamp to textView
     public void setTimestampView (String timestamp){
         String formattedTimestamp = formatTimestamp(timestamp);
         if (formattedTimestamp != null) {
             timestampView.setText(String.format(dateTimeOutputTemplate, formattedTimestamp));
         }
         else {
-            timestampView.setText("Error!");
+            timestampView.setText("Ошибка!");
         }
     }
     //-----------------------------------------------------------------------------------------------
@@ -196,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     // CLASS
-    private class GetData extends AsyncTask <String, String, String> { // TODO
+    private class GetData extends AsyncTask <Void, Void, Void> {
         private ProgressDialog progressDialog;
         private ArrayList <String> arrayList;
         String timestamp;
@@ -209,8 +209,11 @@ public class MainActivity extends AppCompatActivity {
 
             hasError = false;
 
+            // screen orientation lock while ProgressDialog is showing, else will be "WindowLeaked" error
+            MainActivity.this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LOCKED);
+
             progressDialog = new ProgressDialog(MainActivity.this);
-            progressDialog.setMessage("Wait…");
+            progressDialog.setMessage("Подождите…");
             progressDialog.setCancelable(false);
             progressDialog.show();
         }
@@ -219,7 +222,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         @Override
-        protected String doInBackground(String... strings) {
+        protected Void doInBackground(Void... voids) {
             JSON json = new JSON(getApplicationContext());
 
             String serverAnswer = json.getData(); // loading new data
@@ -245,15 +248,17 @@ public class MainActivity extends AppCompatActivity {
 
 
         @Override
-        protected void onPostExecute(String result) {
+        protected void onPostExecute(Void result) {
             super.onPostExecute(result);
 
             if (progressDialog.isShowing()){
                 progressDialog.dismiss();
             }
 
+            MainActivity.this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED); // unlock screen orientation
+
             if (hasError) {
-                Toast.makeText(MainActivity.this, "An error has occured!", Toast.LENGTH_LONG).show();
+                Toast.makeText(MainActivity.this, "Произошла ошибка!", Toast.LENGTH_LONG).show();
                 return;
             }
 
@@ -268,6 +273,18 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         //-----------------------------------------------------------------------------------------------
+
+
+
+        // just in case
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            if (progressDialog.isShowing()){
+                progressDialog.dismiss();
+            }
+            MainActivity.this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED); // unlock screen orientation
+        }
     }
     // class
 }

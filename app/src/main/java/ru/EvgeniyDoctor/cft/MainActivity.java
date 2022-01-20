@@ -12,7 +12,10 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,7 +27,9 @@ import org.json.JSONObject;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
@@ -53,10 +58,17 @@ https://www.cbr-xml-daily.ru/daily_json.js
 public class MainActivity extends AppCompatActivity {
     ListView listView;
     TextView timestampView;
+    TextView conversionResult;
+    Spinner spinner;
+    EditText editText;
+    LinearLayout linearLayout;
 
-    String currencyOutputTemplate = "%s (%s)\nКурс: %s"; // template for listView
-    String dateTimeOutputTemplate = "Актуальность данных: %s (МСК)"; //
     AppPreferences pref;
+    String currencyOutputTemplate = "%s (%s)\nКурс: %s"; // template for listView
+    String dateTimeOutputTemplate = "Актуальность данных: %s (МСК)";
+    HashMap<String, String> codesAndRates; // hash, code : rate
+    
+    final String BUNDLE_CONVERT_RESULT = null;
 
 
 
@@ -67,8 +79,12 @@ public class MainActivity extends AppCompatActivity {
 
         pref = new AppPreferences(getApplicationContext());
 
-        listView = findViewById(R.id.list);
-        timestampView = findViewById(R.id.timestampView);
+        listView            = findViewById(R.id.list);
+        timestampView       = findViewById(R.id.timestampView);
+        conversionResult    = findViewById(R.id.conversionResult);
+        spinner             = findViewById(R.id.spinner);
+        editText            = findViewById(R.id.editText);
+        linearLayout        = findViewById(R.id.linearLayout);
 
         // timestamp loading
         if (pref.contains(JSON.TIMESTAMP)) {
@@ -80,15 +96,86 @@ public class MainActivity extends AppCompatActivity {
         if (pref.contains(JSON.CURRENCIES)) {
             String currencies = pref.getString(JSON.CURRENCIES, "");
             try {
-                ArrayList<String> arrayList = getCurrenciesFromJson(new JSONObject(currencies));
-                if (!arrayList.isEmpty()) {
-                    setListView(arrayList);
+                setUI(getCurrenciesFromJson(new JSONObject(currencies)), currencies); // set items for listview, spinner; set visibility
+
+                // load saved conversion result after changing orientation of the screen
+                if (savedInstanceState != null) {
+                    conversionResult.setText(savedInstanceState.getString(BUNDLE_CONVERT_RESULT, ""));
                 }
             }
             catch (JSONException e) {
                 e.printStackTrace();
             }
         }
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // set items for listview, spinner; set visibility
+    public void setUI (ArrayList<String> formattedCurrencies, String currencies){
+        if (formattedCurrencies.size() > 0) {
+            setListView(formattedCurrencies);
+
+            // spinner
+            setHashCodesAndRates(currencies); // set hash
+            setSpinner(); // set items to the spinner
+
+            // show conversion block
+            linearLayout.setVisibility(View.VISIBLE);
+        }
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // saving data before changing orientation of the screen
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(BUNDLE_CONVERT_RESULT, conversionResult.getText().toString());
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // set hash, code => rate
+    public void setHashCodesAndRates (String currencies){
+        try {
+            codesAndRates = getCodesAndRatesFromJson(new JSONObject(currencies));
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // set codes of the currencies in the spinner
+    public void setSpinner(){
+        ArrayList<String> codes = new ArrayList<>(codesAndRates.keySet());
+        Collections.sort(codes);
+
+        ArrayAdapter<String> adapterCodes = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, codes);
+        spinner.setAdapter(adapterCodes);
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // conversion rubles to the selected currency
+    public void convert (View view) {
+        String text = editText.getText().toString();
+        String selected = spinner.getSelectedItem().toString();
+
+        if (text.isEmpty()) {
+            Toast.makeText(this, "Введите количество рублей", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        double res = Integer.parseInt(editText.getText().toString()) * Double.parseDouble(codesAndRates.get(selected));
+        conversionResult.setText(String.format("%.2f", res));
     }
     //-----------------------------------------------------------------------------------------------
 
@@ -121,7 +208,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         new GetData().execute();
-        startBackgroundUpdate();
+        startBackgroundUpdate(); // start work manager
     }
     //-----------------------------------------------------------------------------------------------
 
@@ -153,6 +240,7 @@ public class MainActivity extends AppCompatActivity {
             while (temp.hasNext()) {
                 String key = temp.next();
                 JSONObject object = Valute.getJSONObject(key);
+
                 arrayList.add(
                     String.format(
                         currencyOutputTemplate,
@@ -167,6 +255,28 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return arrayList;
+    }
+    //-----------------------------------------------------------------------------------------------
+
+
+
+    // get hash like "code => rate"
+    public HashMap<String, String> getCodesAndRatesFromJson(JSONObject Valute) {
+        HashMap<String, String> hash = new HashMap<>();
+        try {
+            Iterator<String> temp = Valute.keys();
+            while (temp.hasNext()) {
+                String key = temp.next();
+                JSONObject object = Valute.getJSONObject(key);
+
+                hash.put(object.getString("CharCode"), object.getString("Value"));
+            }
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        return hash;
     }
     //-----------------------------------------------------------------------------------------------
 
@@ -198,8 +308,9 @@ public class MainActivity extends AppCompatActivity {
     // CLASS
     private class GetData extends AsyncTask <Void, Void, Void> {
         private ProgressDialog progressDialog;
-        private ArrayList <String> arrayList;
+        private ArrayList <String> formattedCurrencies;
         String timestamp;
+        String currencies;
         private boolean hasError;
 
 
@@ -235,11 +346,12 @@ public class MainActivity extends AppCompatActivity {
             timestamp = json.getTimestamp(serverAnswer); // parse json to get timestamp
             JSONObject Valute = json.getCurrencies(serverAnswer); // parse json to get currencies
 
-            arrayList = getCurrenciesFromJson(Valute); // array of strings for listView
+            formattedCurrencies = getCurrenciesFromJson(Valute); // array of strings for listView
+            currencies = Valute.toString();
 
             // save some info
             json.saveTimestamp(timestamp);
-            json.saveCurrencies(Valute.toString());
+            json.saveCurrencies(currencies);
 
             return null;
         }
@@ -262,10 +374,8 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            // currencies
-            if (arrayList.size() > 0) {
-                setListView(arrayList);
-            }
+            // set items for listview, spinner; set visibility
+            setUI(formattedCurrencies, currencies);
 
             // timestamp
             if (!timestamp.isEmpty()) {
